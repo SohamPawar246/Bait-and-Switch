@@ -1,0 +1,120 @@
+using System;
+using Mirror;
+
+namespace BaitSwitch.Net
+{
+    // All network messages (docs/13-netcode.md). Fish and hooks never use NetworkTransform:
+    // the server sends one packed SnapshotMsg (see SnapshotCodec) so players look identical to the school.
+
+    [Flags]
+    public enum Buttons : ushort
+    {
+        None = 0,
+        Dash = 1 << 0,
+        Ink = 1 << 1,
+        Nibble = 1 << 2,   // fish: hold near bait
+        Bite = 1 << 3,     // Leviathan: hold near boat
+        Strike = 1 << 4,   // angler: click
+        Reel = 1 << 5,     // angler: hold during tug
+        Rebait = 1 << 6,   // angler: hold right mouse
+        Sonar = 1 << 7,
+        Mark = 1 << 8,
+        Chum = 1 << 9,
+    }
+
+    /// <summary>Client → server once after connecting.</summary>
+    public struct JoinMsg : NetworkMessage
+    {
+        public string name;
+        public byte[] appearance; // PartCatalog.SlotCount bytes
+    }
+
+    /// <summary>Client → server at 30 Hz, unreliable.</summary>
+    public struct InputMsg : NetworkMessage
+    {
+        public uint seq;
+        public sbyte moveX;   // -127..127
+        public sbyte moveY;
+        public short cursorX; // world units * 256 (angler hook target, or mouse-follow swim target)
+        public short cursorY;
+        public Buttons buttons;
+    }
+
+    /// <summary>Server → client once per round, reliable. Tells only YOU your role and fish id.</summary>
+    public struct RoundStartMsg : NetworkMessage
+    {
+        public byte round;            // 1..3
+        public Role role;
+        public ushort yourFishId;     // 0xFFFF if angler
+        public byte yourBoatId;       // 0xFF if fish
+        public byte appetiteSlot;     // the Deep's Appetite: a Slot and part id
+        public byte appetitePart;
+        public ushort fishCount;
+        public byte[] appearanceTable; // fishCount * SlotCount bytes, indexed by shuffled fish id
+        public string[] seatNames;     // for the ledger and boats; bots carry their cult titles
+    }
+
+    /// <summary>Server → client at 15 Hz, unreliable. Payload packed by SnapshotCodec.</summary>
+    public struct SnapshotMsg : NetworkMessage
+    {
+        public uint tick;
+        public float roundTime;
+        public byte[] data;
+    }
+
+    public enum EventKind : byte
+    {
+        Hooked, Snapped, TornLoose, Landed, Switched, LeviathanRises, BoatDragged,
+        SonarPing, Mark, PhaseChanged, RoundEnd, MatchEnd, PlayerJoined, PlayerLeft,
+        SomethingNewSwims, Rotation, Nibble, Eaten, InkCloud, MissScatter, Shock,
+    }
+
+    /// <summary>Server → client, reliable. Generic event; meaning of a/b/x/y depends on kind.</summary>
+    public struct EventMsg : NetworkMessage
+    {
+        public EventKind kind;
+        public ushort a;    // usually a fish id or seat
+        public ushort b;    // usually a boat/seat id
+        public short x;     // world position * 256 for effects
+        public short y;
+        public string text; // optional line from Copy
+    }
+
+    /// <summary>Server → clients in a tug, 10 Hz, unreliable.</summary>
+    public struct TugMsg : NetworkMessage
+    {
+        public byte tugId;
+        public byte tension;     // 0..255 maps to 0..threshold
+        public byte threshold;   // current snap threshold (fatigue lowers it)
+        public byte stamina;     // 0..255 maps to 0..max
+        public ushort distanceCm;
+        public bool exhausted;
+    }
+
+    /// <summary>Server → client after each round, reliable.</summary>
+    public struct LedgerMsg : NetworkMessage
+    {
+        public byte round;
+        public bool fishWon;
+        public string[] names;
+        public short[] points;     // total so far
+        public byte[] catches;
+        public byte[] escapes;
+        public string[] titles;    // filled after the final round, else empty
+    }
+
+    /// <summary>Server → client on connect: for the Edgegap HUD panel.</summary>
+    public struct ServerInfoMsg : NetworkMessage
+    {
+        public string location;    // "Mumbai, India"
+        public string deploymentId;
+        public float uptimeSeconds;
+    }
+
+    public static class Quant
+    {
+        public const float Scale = 256f; // 1/256 unit resolution, ±128 unit range
+        public static short Pack(float v) => (short)UnityEngine.Mathf.Clamp(UnityEngine.Mathf.RoundToInt(v * Scale), short.MinValue, short.MaxValue);
+        public static float Unpack(short v) => v / Scale;
+    }
+}

@@ -1,0 +1,40 @@
+{
+  "effortLevel": "medium",
+  "includeGitInstructions": false,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git stash *)",
+      "Bash(git restore *)",
+      "Bash(git rm *)",
+      "Bash(git mv *)",
+      "Bash(git tag *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git revert *)",
+      "Bash(git clean *)",
+      "Bash(git remote *)",
+      "Bash(git -C *)",
+      "Bash(git -c *)",
+      "Bash(gh *)"
+    ],
+    "ask": [
+      "Bash(docker *)",
+      "Bash(wrangler *)",
+      "Bash(npx wrangler *)",
+      "Bash(butler *)"
+    ]
+  }
+}
