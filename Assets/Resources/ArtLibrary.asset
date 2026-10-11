@@ -1,0 +1,66 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 801389096aa196f4180d844fc34538d8, type: 3}
+  m_Name: ArtLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::BaitSwitch.ArtLibrary
+  toon: {fileID: 2100000, guid: fafa15eb6608fe64ab1cb4ae1d727c1e, type: 2}
+  seaBackdrop: {fileID: 2100000, guid: 733f7690d9f3cc743a0a80a96d15622e, type: 2}
+  menuWater: {fileID: 2100000, guid: 425ae851b488d7e4981d2c8eef0f9df4, type: 2}
+  ditherImage: {fileID: 2100000, guid: 89b68ea8c90c6e34ba9e92c71c0b13e1, type: 2}
+  ditherFade: {fileID: 2100000, guid: 96dd39a652296324498501c23a24d82a, type: 2}
+  fx: {fileID: 2100000, guid: ab7df830e0464e1498703911d9699cc7, type: 2}
+  display: {fileID: 12800000, guid: b2d0d068beae4c84eb7b4e5df911ab32, type: 3}
+  body: {fileID: 12800000, guid: e1089e13b48005944be00e30ea4253bf, type: 3}
+  bodyBold: {fileID: 12800000, guid: b622009e50a907843baeffcad43a03ee, type: 3}
+  boat: {fileID: 919132149155446097, guid: e183a05c4b0ee24489a8dbe5603a9370, type: 3}
+  gull: {fileID: 919132149155446097, guid: 6fe5e85fb3f04ba41afa1e12bdd858c6, type: 3}
+  raincoat: {fileID: 919132149155446097, guid: af1103947b8f2d44fbb83e4ae5017e29, type: 3}
+  lantern: {fileID: 919132149155446097, guid: 5fc43a4915b5c8c49873cf35b27550e4, type: 3}
+  hats:
+  - {fileID: 919132149155446097, guid: b4102d5372df48742956aabe17f84d39, type: 3}
+  - {fileID: 919132149155446097, guid: c9946f343ab734f479945fb062bb80a5, type: 3}
+  - {fileID: 919132149155446097, guid: bfa1ed5da3ab3284d81db872d813dff3, type: 3}
+  rods:
+  - {fileID: 919132149155446097, guid: eb7ef84431d8def44ad9a213d2d8747f, type: 3}
+  - {fileID: 919132149155446097, guid: 506a3a0177ad1fc4eb89288de3d81ae5, type: 3}
+  - {fileID: 919132149155446097, guid: 5d4055dab5bad684bb87336611c5f28d, type: 3}
+  - {fileID: 919132149155446097, guid: 2184574bf80ad094a99fc664c524d649, type: 3}
+  hooks:
+  - {fileID: 919132149155446097, guid: aca0a238b0f6b3145a639e1d4a2585af, type: 3}
+  - {fileID: 919132149155446097, guid: a8e3310a3cf0fc1408c4e34ac6b0db53, type: 3}
+  - {fileID: 919132149155446097, guid: 57c76b9a2937c4947863e4071a7150cc, type: 3}
+  - {fileID: 919132149155446097, guid: 278e4531b60cc954e8e4919622979134, type: 3}
+  - {fileID: 919132149155446097, guid: 4656a0006718d864bbe0510f335f5fdb, type: 3}
+  - {fileID: 919132149155446097, guid: f7276f41d7dbbc4409edf4d51704fca9, type: 3}
+  baits:
+  - {fileID: 919132149155446097, guid: 4a06621984712c04e9491edec3c58fc6, type: 3}
+  - {fileID: 919132149155446097, guid: 8bc155ea401b6024da5ff492c4961570, type: 3}
+  - {fileID: 919132149155446097, guid: 3c48a682330cb1e4c80fcab85258afcd, type: 3}
+  - {fileID: 919132149155446097, guid: cedc519c62c091648b3dd2131786016d, type: 3}
+  - {fileID: 919132149155446097, guid: 8ef37e5af0df44a478dc3f0902d50757, type: 3}
+  rocks:
+  - {fileID: 919132149155446097, guid: fe6402e9e43765f44af916e2d260c049, type: 3}
+  - {fileID: 919132149155446097, guid: ccd27f67d2a5e3b43bf27caf7221e9a3, type: 3}
+  - {fileID: 919132149155446097, guid: 8ec1daaaa1376e247a8991ff1bc11006, type: 3}
+  kelp:
+  - {fileID: 919132149155446097, guid: 5d577eedfa5797d45a0672dc3f362f87, type: 3}
+  - {fileID: 919132149155446097, guid: 737968877be461741a073f5e2c79dab7, type: 3}
+  - {fileID: 919132149155446097, guid: 9f16481b38d32f44b935648ec7c68010, type: 3}
+  coral:
+  - {fileID: 919132149155446097, guid: d50486e1ab71d3c478e974581f819821, type: 3}
+  - {fileID: 919132149155446097, guid: 4373ac633c5501b4dae60b8fafcc0366, type: 3}
+  arch: {fileID: 919132149155446097, guid: be84a4db594321044b94e963db8f2f2c, type: 3}
+  shrine: {fileID: 919132149155446097, guid: eecf5fa70447f79449c09d52b78f39d3, type: 3}
+  candle: {fileID: 919132149155446097, guid: 0cf7fe988371139408ba507daf07b9ae, type: 3}
+  crate: {fileID: 919132149155446097, guid: b058630cdc623d7499aa7c35b7d478fe, type: 3}
+  skeleton: {fileID: 919132149155446097, guid: 3e848a1b9d73791408e6a10f30df22bd, type: 3}
+  eggSac: {fileID: 919132149155446097, guid: 4dcb34147ca85fc4697f5e3217be5a1a, type: 3}

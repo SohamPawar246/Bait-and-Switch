@@ -10,13 +10,13 @@ import bpy
 import style as S
 import common as C
 
-REQUIRED_SOCKETS = ["front", "eyes", "mouth", "fin_L", "fin_R", "tail", "top", "belly", "coat", "hat"]
+REQUIRED_SOCKETS = ["front", "eyes", "eye_L", "eye_R", "eye_C", "mouth", "fin_L", "fin_R", "tail", "top", "belly", "coat", "hat"]
 
 
 def roots(family=None):
     out = []
     for ob in bpy.data.objects:
-        if ob.type == "MESH" and ob.parent is None and "family" in ob:
+        if ob.type in ("MESH", "EMPTY") and ob.parent is None and "family" in ob:
             if family in (None, "all", ob["family"]):
                 out.append(ob)
     return out
@@ -28,6 +28,17 @@ def _mesh_children(ob):
 
 def check(ob):
     problems = []
+    if ob.type == "EMPTY":  # eyes: an empty root with eye_* mesh children
+        tris = sum(C.tri_count(c) for c in _mesh_children(ob))
+        budget = S.BUDGET.get(ob.get("budget", ""), 1000)
+        if tris > budget:
+            problems.append(f"{tris} tris > budget {budget}")
+        kids = [c for c in ob.children if c.type == "MESH"]
+        if not kids or not all(c.name.split(".")[0] in ("eye_L", "eye_R", "eye_C") for c in kids):
+            problems.append("eyes children must be named eye_L / eye_R / eye_C")
+        if not all(any("pupil" in g.name for g in c.children) for c in kids):
+            problems.append("every eye needs pupil children")
+        return {"name": ob.name, "family": ob.get("family"), "tris": tris, "ok": not problems, "problems": problems}
     tris = C.tri_count(ob) + sum(C.tri_count(c) for c in _mesh_children(ob))
     budget = S.BUDGET.get(ob.get("budget", ""), 1000)
     if tris > budget:
@@ -60,8 +71,6 @@ def check(ob):
         if eye and tail and not (eye.matrix_world.translation.x - ob.matrix_world.translation.x > 0 > tail.matrix_world.translation.x - ob.matrix_world.translation.x):
             problems.append("facing wrong: eyes must be at +X, tail at -X")
 
-    if ob.get("family") == "eyes" and not any("pupil" in c.name for c in ob.children):
-        problems.append("eyes without pupil children (Unity needs them for tracking)")
 
     return {"name": ob.name, "family": ob.get("family"), "tris": tris, "ok": not problems, "problems": problems}
 

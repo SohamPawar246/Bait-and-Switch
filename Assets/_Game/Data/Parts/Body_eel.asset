@@ -25,5 +25,5 @@ MonoBehaviour:
   - stat: 3
     value: 0.8
   tint: {r: 1, g: 1, b: 1, a: 1}
-  prefab: {fileID: 0}
-  thumbnail: {fileID: 0}
+  prefab: {fileID: 919132149155446097, guid: 42b28b451819cda478947185ab5c5370, type: 3}
+  thumbnail: {fileID: 21300000, guid: 9d9376394e053c84da98c283eeedf97f, type: 3}

@@ -21,5 +21,5 @@ MonoBehaviour:
   abilities: 0
   mods: []
   tint: {r: 1, g: 1, b: 1, a: 1}
-  prefab: {fileID: 0}
-  thumbnail: {fileID: 0}
+  prefab: {fileID: 919132149155446097, guid: baadf0277748951438b677a27c7a595a, type: 3}
+  thumbnail: {fileID: 21300000, guid: 07d3c9012f948e448b116da82d5da68f, type: 3}

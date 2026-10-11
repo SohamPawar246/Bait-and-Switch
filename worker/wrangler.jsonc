@@ -5,7 +5,7 @@
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
   "vars": {
-    "EDGEGAP_APP": "bait-and-switch",
+    "EDGEGAP_APP": "BaitAndSwitch",
     "EDGEGAP_VERSION": "prod"
   },
   "durable_objects": {

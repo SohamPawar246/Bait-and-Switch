@@ -69,6 +69,12 @@ def _sockets(ob, length, height, width):
     tail, n_tail = C.surface_point(ob, (-1, 0, 0))
     top, n_top = C.surface_point(ob, (0.1, 0, 1))
     belly, n_belly = C.surface_point(ob, (0, 0, -1))
+    eL, nEL = C.surface_point(ob, S.EYE_RAY)
+    eR, nER = C.surface_point(ob, (S.EYE_RAY[0], -S.EYE_RAY[1], S.EYE_RAY[2]))
+    eC, nEC = C.surface_point(ob, S.EYE_C_RAY)
+    C.add_socket(ob, "eye_L", eL, nEL)
+    C.add_socket(ob, "eye_R", eR, nER)
+    C.add_socket(ob, "eye_C", eC, nEC)
     C.add_socket(ob, "front", front, (1, 0, 0))
     C.add_socket(ob, "eyes", eyes, n_eyes.lerp(Vector((1, 0, 0)), 0.5))
     C.add_socket(ob, "mouth", mouth, n_mouth.lerp(Vector((1, 0, 0)), 0.5))
@@ -116,11 +122,16 @@ def bodies():
     def plates(ob):
         bm = bmesh.new()
         bm.from_mesh(ob.data)
-        for i in range(S.PLATE_COUNT):
-            x = S.BODY_LEN * (0.25 - i * 0.16)
-            ring = C.bm_cone(S.BODY_WIDTH * 0.53 * (1 - i * 0.12), S.BODY_WIDTH * 0.5 * (1 - i * 0.12), S.PLATE_THICK * 4, 20,
-                             _M((x, 0, 0), _ry(90), (1, S.BODY_HEIGHT / S.BODY_WIDTH, 1)), cap_ends=True)
-            C.merge_into(bm, ring, 1)
+        for i in range(S.SCUTE_COUNT):
+            t = i / (S.SCUTE_COUNT - 1)
+            d = Vector((0.35 - t * 0.85, 0, 1)).normalized()
+            hit, loc, nrm, _ = ob.ray_cast(d * 5, -d)
+            if not hit:
+                continue
+            rot = Vector((0, 0, 1)).rotation_difference(nrm).to_matrix().to_4x4()
+            s = 0.11 * (1 - 0.35 * abs(t - 0.4))
+            scute = C.bm_uvsphere(s, 10, 6, Matrix.Translation(loc) @ rot @ Matrix.Diagonal((1.0, 0.7, 0.32, 1)))
+            C.merge_into(bm, scute, 1)
         bm.to_mesh(ob.data)
         bm.free()
 
@@ -129,62 +140,127 @@ def bodies():
 
 
 # ====================================================================== eyes
+# Contract: an eyes part is an EMPTY root (e.g. eyes_two) with mesh children named eye_L / eye_R / eye_C.
+# Each child is modelled at its socket origin growing along local +Z (out of the body) and is parented by Unity
+# to the body's socket_eye_L / _R / _C. Each eyeball carries pupil_<n> children (Unity turns them toward hooks).
 
 def _eye_mats():
     return [C.fill_material(), C.detail_material(S.PALETTE["cream"], name="EyeWhite")]
 
 
-def _eyes(name, layout):
-    """layout: list of (x, y, diam_mul). Part local frame: X sideways, Y up, +Z out of the face."""
-    coll = C.collection("eyes")
-    root_bm = bmesh.new()
+def _eye(name, coll, balls):
+    """balls: list of (x, y, diam_mul) offsets in the socket frame (clusters use several)."""
+    bm = bmesh.new()
     pupils = []
-    r_face = S.BODY_WIDTH * 0.5
-    for i, (x, y, dm) in enumerate(layout):
+    for (x, y, dm) in balls:
         d = S.EYE_DIAM * dm
-        z = -(x * x + y * y) / (2 * r_face)  # follow face curvature
-        z += d * (0.5 - S.EYE_EMBED)
+        r = d / 2
+        zc = d * (0.5 - S.EYE_EMBED)
         big = dm > 0.7
-        ball = C.bm_uvsphere(d / 2, 14 if big else 8, 8 if big else 6, _M((x, y, z)))
-        C.merge_into(root_bm, ball, 1)
-        pd = d * S.PUPIL_DIAM_MUL
-        pbm = C.bm_uvsphere(pd / 2, 10 if big else 6, 6 if big else 4, _M((0, 0, 0), None, (1, 1, 0.45)))
-        hl = C.bm_uvsphere(d * S.HIGHLIGHT_DIAM_MUL / 2, 6, 4, _M((pd * 0.22, pd * 0.25, pd * 0.2)))
-        C.merge_into(pbm, hl, 1)
-        pupils.append((pbm, Vector((x, y, z + d * 0.42))))
-    root = C.mesh_object(name, root_bm, coll, _eye_mats())
-    C.finish(root)
+        C.merge_into(bm, C.bm_uvsphere(r, 14 if big else 8, 8 if big else 5, _M((x, y, zc))), 1)
+        pr = r * S.PUPIL_DIAM_MUL
+        pbm = C.bm_uvsphere(pr, 10 if big else 6, 6 if big else 4, _M((0, 0, 0), None, (1, 1, S.PUPIL_FLAT)))
+        # two wet highlights, upper-front: one big, one small (emissive)
+        C.merge_into(pbm, C.bm_uvsphere(r * S.HIGHLIGHT_DIAM_MUL, 6, 4, _M((pr * 0.38, pr * 0.42, pr * 0.22))), 1)
+        if big:
+            C.merge_into(pbm, C.bm_uvsphere(r * S.HIGHLIGHT2_DIAM_MUL, 5, 3, _M((-pr * 0.35, -pr * 0.3, pr * 0.2))), 1)
+        pupils.append((pbm, Vector((x, y, zc + r * 0.9))))
+        # coloured iris ring pressed onto the front of the eyeball
+        C.merge_into(bm, C.bm_uvsphere(r * S.IRIS_MUL, 14 if big else 8, 6 if big else 4,
+                                       _M((x, y, zc + r * 0.86), None, (1, 1, 0.22))), 2)
+    ob = C.mesh_object(name, bm, coll, _eye_mats() + [C.detail_material("#8A5A9E", name="Iris")])
+    C.finish(ob)
     for i, (pbm, loc) in enumerate(pupils):
-        p = C.mesh_object(f"{name}_pupil_{i}", pbm, coll,
+        p = C.mesh_object(f"pupil_{i}", pbm, coll,
                           [C.detail_material(S.PALETTE["ink"], name="Pupil"), C.detail_material(S.PALETTE["cream"], 3.0, name="Highlight")])
         C.finish(p)
-        p.parent = root
-        p.location = loc  # Unity rotates these to look at the nearest hook
-    return C.tag(root, "eyes", "eyes")
+        p.parent = ob
+        p.location = loc
+    return ob
+
+
+def _lid(coll, d, cover, droop):
+    """A heavy upper eyelid (Fill/skin): a dome capping the top of the eyeball, tilted for an uneven, sleepy stare."""
+    r = d / 2 * 1.06
+    zc = d * (0.5 - S.EYE_EMBED)
+    bm = C.bm_uvsphere(r, 14, 8)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, r * (1 - 2 * cover), 0), plane_no=(0, -1, 0), clear_outer=True)
+    for v in bm.verts:
+        v.co = _rx(droop).to_3x3() @ v.co + Vector((0, 0, zc))
+    lid = C.mesh_object("lid", bm, coll, [C.fill_material()])
+    C.add_modifier(lid, "SOLIDIFY", thickness=0.008, offset=1.0)
+    C.bake_modifiers(lid)
+    return lid
+
+
+def _eyes(name, sockets, lids=None):
+    """sockets: {"L": balls, "R": balls, "C": balls}; lids: {"L": cover}. Returns the EMPTY root."""
+    import bpy
+    coll = C.collection("eyes")
+    root = bpy.data.objects.new(name, None)
+    root.empty_display_size = 0.1
+    coll.objects.link(root)
+    for key, balls in sockets.items():
+        e = _eye(f"eye_{key}", coll, balls)
+        e.parent = root
+        if lids and key in lids and balls:
+            d = S.EYE_DIAM * balls[0][2]
+            lid = _lid(coll, d, lids[key], 12 if key == "L" else -8)
+            C.join_into(e, [lid])
+    root["family"] = "eyes"
+    root["budget"] = "eyes"
+    root["closed"] = True
+    root["export"] = name
+    return root
 
 
 def eyes():
     a = S.EYE_ASYM
-    sp = S.EYE_SPREAD
-    seven = []
-    for i in range(7):
-        ang = math.radians(-60 + i * 20)
-        seven.append((math.sin(ang) * sp * 1.3, math.cos(ang) * 0.05 - 0.02 + (0.04 if i % 2 else 0), S.SEVEN_EYE_DIAM_MUL * (1 + (a if i % 3 == 0 else -a))))
+    k = S.SEVEN_EYE_DIAM_MUL
+    cl = 0.045  # cluster offset for the seven-eyed horror
     return [
-        _eyes("eyes_two", [(-sp, 0, 1 + a), (sp, 0, 1 - a)]),
-        _eyes("eyes_three", [(-sp, -0.01, 0.9 + a), (sp, -0.01, 0.9 - a), (0, 0.11, 0.6)]),
-        _eyes("eyes_seven", seven),
-        _eyes("eyes_cyclops", [(0, 0.01, S.CYCLOPS_DIAM_MUL)]),
+        _eyes("eyes_two", {"L": [(0, 0, 1 + a)], "R": [(0, 0, 1 - a)]}, lids={"R": S.LID_COVER}),
+        _eyes("eyes_three", {"L": [(0, 0, 0.92 + a)], "R": [(0, 0, 0.92 - a)], "C": [(0, 0, 0.55)]}, lids={"L": S.LID_COVER * 0.6}),
+        _eyes("eyes_seven", {"L": [(0, 0, k * 1.5 * (1 + a)), (cl * 1.4, cl * 1.2, k), (-cl * 1.3, -cl, k * 0.8)],
+                             "R": [(0, 0, k * 1.5 * (1 - a)), (-cl * 1.4, cl * 1.1, k * 0.9), (cl * 1.2, -cl, k * 0.75)],
+                             "C": [(0, 0, k * 1.2)]}),
+        _eyes("eyes_cyclops", {"C": [(0, 0, S.CYCLOPS_DIAM_MUL)]}),
     ]
 
 
 # ====================================================================== fins
 
+def _fan(length, width, scallops, spread_deg, sweep_deg):
+    """A fan-shaped membrane in the local X/Z plane growing along +Z, with a scalloped outer edge (bmesh grid)."""
+    bm = bmesh.new()
+    rings, segs = 6, scallops * 6
+    verts = []
+    for i in range(rings + 1):
+        t = i / rings
+        row = []
+        for j in range(segs + 1):
+            u = j / segs
+            ang = math.radians(-spread_deg / 2 + spread_deg * u + sweep_deg)
+            scallop = 1.0 - 0.13 * (0.5 + 0.5 * math.cos(u * scallops * 2 * math.pi)) * t
+            rad = length * (0.12 + 0.88 * t) * scallop
+            row.append(bm.verts.new((math.sin(ang) * rad * (width / length), 0.0, math.cos(ang) * rad)))
+        verts.append(row)
+    for i in range(rings):
+        for j in range(segs):
+            bm.faces.new((verts[i][j], verts[i][j + 1], verts[i + 1][j + 1], verts[i + 1][j]))
+    return bm
+
+
 def _fin(name, length, width, thick, sweep=25):
     coll = C.collection("fins")
-    bm = C.bm_uvsphere(0.5, 14, 8, _M((0, 0, length * 0.42), _rx(-sweep), (width, thick, length)))
+    bm = _fan(length, width * 1.6, S.FIN_SCALLOPS, 70, 0)
+    # lie flat against the body side (local X/Y plane, facing the camera), sweeping back (−X) and drooping down
+    m = (_rz(18 + sweep * 0.4) @ _rx(90) @ _ry(-90)).to_3x3()
+    for v in bm.verts:
+        v.co = m @ v.co + Vector((0, 0, thick * 1.5))
     ob = C.mesh_object(name, bm, coll)
-    C.add_modifier(ob, "SIMPLE_DEFORM", deform_method="TAPER", factor=-0.6, deform_axis="Z")
+    C.add_modifier(ob, "SOLIDIFY", thickness=thick, offset=0.0)
+    C.add_modifier(ob, "SUBSURF", levels=1, render_levels=1)
     C.bake_modifiers(ob)
     C.finish(ob)
     return C.tag(ob, "fins", "fins")
@@ -205,18 +281,23 @@ def _lobe(length, width, angle, thick=S.TAIL_THICK):
 
 
 def _tail(name, lobes, extra=None):
+    """Tail fins as scalloped fan membranes in the local Y/Z plane (up = local Y), joined at a fleshy root."""
     coll = C.collection("tails")
     bm = bmesh.new()
     for (length, width, ang) in lobes:
-        C.merge_into(bm, _lobe(length, width, ang), 0)
-    root = C.bm_uvsphere(0.5, 10, 6, _M((0, 0, 0.02), None, (S.TAIL_THICK * 2, S.TAIL_SPREAD * 0.35, 0.09)))
-    C.merge_into(bm, root, 0)
+        fan = _fan(length * 1.08, width * 2.6, max(2, S.TAIL_SCALLOPS // max(1, len(lobes) - 1)), 64, 0)
+        rot = _rx(-ang) @ _rz(90)
+        for v in fan.verts:
+            v.co = rot.to_3x3() @ v.co
+        C.merge_into(bm, fan, 0)
     ob = C.mesh_object(name, bm, coll)
+    C.add_modifier(ob, "SOLIDIFY", thickness=S.TAIL_THICK * 0.7, offset=0.0)
+    C.add_modifier(ob, "SUBSURF", levels=1, render_levels=1)
+    C.bake_modifiers(ob)
+    stub = C.mesh_object(name + "_root", C.bm_uvsphere(0.5, 12, 8, _M((0, 0, 0.03), None, (S.TAIL_THICK * 2.6, S.TAIL_SPREAD * 0.4, 0.11))), coll)
+    C.join_into(ob, [stub])
     if extra:
         extra(ob)
-    C.add_modifier(ob, "REMESH", mode="VOXEL", voxel_size=0.018)
-    C.add_modifier(ob, "SMOOTH", factor=0.6, iterations=4)
-    C.bake_modifiers(ob)
     C.finish(ob)
     return C.tag(ob, "tails", "tails")
 

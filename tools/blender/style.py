@@ -6,9 +6,9 @@ Each attached part is modelled at the origin "growing" along its local +Z (the s
 
 # ---------------------------------------------------------------- proportions (fish)
 BODY_LEN = 0.9            # nose to tail root, metres
-BODY_HEIGHT = 0.62        # chibi: tall, round
-BODY_WIDTH = 0.52
-HEAD_BIAS = 0.18          # front half fatter than the back (0 = symmetric egg)
+BODY_HEIGHT = 0.70        # chibi: tall, round (big head, short body)
+BODY_WIDTH = 0.56
+HEAD_BIAS = 0.30          # front half much fatter than the back: reads as a big head
 SUBDIV = 2
 
 EEL_LEN_MUL, EEL_HEIGHT_MUL = 1.45, 0.62
@@ -20,13 +20,18 @@ PLATE_COUNT = 4
 PLATE_THICK = 0.018
 
 # eyes
-EYE_DIAM = 0.20           # big glossy eyes: fraction of body height ~ 0.32
-EYE_EMBED = 0.30          # 30% of the eyeball sinks into the body
-EYE_HEIGHT = 0.06         # eye line above body centre (low on the face reads as cute)
+EYE_DIAM = 0.29           # big glossy eyes: ~0.41 of body height
+EYE_EMBED = 0.38          # how much of the eyeball sinks into the body
+EYE_HEIGHT = 0.06         # (legacy socket_eyes) eye line above body centre
+# per-eye sockets: ray directions (forward, side, up) cast at the head; low and toward the front reads as cute
+EYE_RAY = (0.62, 0.78, -0.04)
+EYE_C_RAY = (0.72, 0.0, 0.62)
+PUPIL_FLAT = 0.30         # pupil is a flattened disc pressed onto the eyeball
+HIGHLIGHT2_DIAM_MUL = 0.11
 EYE_SPREAD = 0.15         # half distance between two eyes
 EYE_ASYM = 0.08           # +8% on one eye, -8% on the other (unsettling, deliberately)
-PUPIL_DIAM_MUL = 0.55
-HIGHLIGHT_DIAM_MUL = 0.22
+PUPIL_DIAM_MUL = 0.66
+HIGHLIGHT_DIAM_MUL = 0.26
 CYCLOPS_DIAM_MUL = 1.7
 SEVEN_EYE_DIAM_MUL = 0.42
 
@@ -62,14 +67,70 @@ LAMP_BULB = 0.07
 
 # ---------------------------------------------------------------- angler gear
 COAT_HEIGHT = 0.70
-COAT_RADIUS_BOTTOM = 0.42
-COAT_RADIUS_TOP = 0.20
-HOOD_RADIUS = 0.30
+COAT_RADIUS_BOTTOM = 0.46     # three sizes too big: wide bell
+COAT_RADIUS_TOP = 0.22
+HEM_THICK = 0.04
+HOOD_RADIUS = 0.33
+HOOD_STRETCH = (1.0, 1.05, 1.12)
+HOOD_PEAK_LEN = 0.36          # the cultish point, drooping backwards
+HOOD_PEAK_DROOP_DEG = 28
+VOID_SCALE = (0.55, 0.86, 0.95)   # the black opening, fraction of the hood radius
+HOOD_PUPIL = 0.04
+HOOD_PUPIL_SPREAD = 0.085
+SLEEVE_LEN = 0.26
+SLEEVE_RADIUS = 0.085
+BELT_HEIGHT = 0.30            # rope belt above the hem
+BELT_THICK = 0.025
 ROD_LEN = 1.4
 ROD_RADIUS = 0.018
 HOOK_SIZE = 0.10
 HOOK_WIRE = 0.009
 LANTERN_SIZE = 0.09
+
+# ---------------------------------------------------------------- environment / props (camera side is -Y)
+KELP_BLADES = 13
+KELP_BLADE_LEN = 0.75
+KELP_BLADE_WIDTH = 0.24
+KELP_STEM = 0.055
+CORAL_BRANCHES = 6
+CORAL_HEIGHT = 0.95
+SHRINE_HEIGHT = 1.1
+SIGIL_SIZE = 0.26
+CANDLE_RADIUS = 0.065
+CANDLE_HEIGHT = 0.24
+CRATE_SIZE = (0.8, 0.6, 0.55)
+EGG_COUNT = 9
+EGG_RADIUS = 0.11
+
+# ---------------------------------------------------------------- scene kit (dinghy, gull)
+BOAT_LEN = 1.9
+BOAT_WIDTH = 0.9
+BOAT_DEPTH = 0.4
+BOAT_BOW_PINCH = 0.85
+BOAT_STERN_PINCH = 0.25
+BOAT_SHEER = 0.55
+BOAT_HULL_THICK = 0.035
+BOAT_RAIL = 0.03
+BOAT_STRAKES = 0
+BOAT_PAINT = "#E8E2D2"      # weathered cream (tinted per Angler in Unity)
+BOAT_WOOD = "#5A3E2A"
+BOAT_TRIM = "#3B2C22"
+GULL_HEIGHT = 0.42
+GULL_WHITE = "#F2F0EA"
+GULL_GREY = "#8E97A3"
+GULL_BEAK = "#F2C14E"
+
+# ---------------------------------------------------------------- v2 detail
+IRIS_MUL = 0.82           # iris disc diameter vs eyeball
+LID_COVER = 0.42          # heavy upper lid on one eye (fraction of the eye it covers)
+FIN_SCALLOPS = 5
+TAIL_SCALLOPS = 6
+SCUTE_COUNT = 6
+HULL_STATIONS = 36
+HULL_SECTION = 22
+HULL_STRAKES = 5
+HULL_STEP = 0.012         # clinker step between strakes
+HULL_RIBS = 7
 
 # ---------------------------------------------------------------- outline / shading
 OUTLINE = 0.012           # inverted-hull thickness, metres (same everywhere)
@@ -77,8 +138,8 @@ SMOOTH_ANGLE_DEG = 40
 
 # ---------------------------------------------------------------- budgets (triangles)
 BUDGET = {
-    "body": 1800, "eyes": 1000, "fins": 250, "tails": 500, "mouths": 450, "specials": 900,
-    "angler": 1600, "hooks": 400, "env": 900, "props": 900,
+    "body": 4000, "eyes": 2400, "fins": 1200, "tails": 2000, "mouths": 900, "specials": 2000,
+    "angler": 4000, "hooks": 800, "env": 3000, "props": 3000, "scene": 12000,
 }
 
 # ---------------------------------------------------------------- palette (linear-ish sRGB hex)
@@ -90,6 +151,8 @@ PALETTE = {
 
 # Fill is tinted per fish in Unity; preview uses this grey so shape is judged, not colour.
 PREVIEW_FILL = "#B9B3A8"
+# Combo/preview tints so contact sheets show how the kit reads in colour (Unity tints per appearance).
+PREVIEW_TINTS = ["#FF8C7A", "#B79CED", "#B8D86B", "#3FA7A3", "#F2C14E", "#F4E9D8", "#9BF6C4", "#D9A066"]
 
 # ---------------------------------------------------------------- paths (relative to repo root)
 EXPORT_MESH_DIR = "Assets/_Game/Art/Parts"

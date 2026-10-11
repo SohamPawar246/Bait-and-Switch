@@ -14,7 +14,7 @@ namespace BaitSwitch.EditorTools
     public static class PartCatalogBuilder
     {
         const string PartsDir = "Assets/_Game/Data/Parts";
-        const string ResDir = "Assets/_Game/Resources";
+        const string ResDir = "Assets/Resources";
         const string MeshDir = "Assets/_Game/Art/Parts";   // FBX per part from Blender: <slot>_<name>.fbx
         const string ThumbDir = "Assets/_Game/Art/Thumbs"; // PNG per part from Blender: <slot>_<name>.png
 

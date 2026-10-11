@@ -23,7 +23,7 @@ namespace BaitSwitch
         public int seats = 6;
         public int startingAnglers = 1;
         public int roundsPerMatch = 3;
-        public float introSeconds = 5f;
+        public float introSeconds = 9f;   // long enough to read the role card
         public float roundSeconds = 120f;
         public float ledgerSeconds = 10f;
         public float duskStart = 50f;
@@ -44,8 +44,8 @@ namespace BaitSwitch
         public float inkCooldown = 12f;
 
         [Header("Nibble and growth")]
-        public float nibbleRange = 0.7f;
-        public float nibbleTime = 0.6f;
+        public float nibbleRange = 1.25f;   // covers the bait hanging under the hook point
+        public float nibbleTime = 0.5f;
         public float growthDay = 1f;
         public float growthDusk = 1.5f;
         public float growthNight = 2f;
@@ -59,6 +59,7 @@ namespace BaitSwitch
         public float leviathanGrowthAfterDrag = 3f;
         public float leviathanStamina = 300f;
         public float leviathanSingleHookBreak = 1f;
+        public float leviathanBiteRange = 2f;  // from the boat's hull at the surface
 
         [Header("Angler and hook")]
         public float dinghySpeed = 3f;
@@ -76,6 +77,23 @@ namespace BaitSwitch
         public float rebaitTime = 0.5f;
         public float schoolLandTime = 1f;
         public float snagSpeed = 3f; // spiky hook snags above this hook speed
+        public float rodHeight = 1f;          // rod tip above the surface
+        public float hookRadius = 0.15f;      // for rock collision
+        public float kelpHookSlow = 0.5f;     // hook speed multiplier inside kelp
+        public float nibbleTwitchInterval = 0.25f;
+        public float reelTipDistance = 0.4f;  // hook counts as "at the rod" within this
+        public float playerLandRespawn = 1.5f; // placeholder until conversion (step 4)
+        public float scatterSpeedMul = 2f;
+        public float hookFollowRate = 3f;      // client: own hook/boat ease toward server (1/s)
+        public float hookResyncDist = 3f;      // client: snap own hook to server beyond this
+
+        [Header("Terrain (rect = x, y, width, height in world units)")]
+        public Rect[] rocks =
+        {
+            new Rect(-12f, -20f, 1.5f, 6f), new Rect(-8f, -20f, 1.5f, 6f), new Rect(-12f, -14.5f, 5.5f, 1.5f), // arch
+            new Rect(9f, -20f, 5f, 3.5f), new Rect(10.5f, -16.5f, 2f, 2f),                                      // outcrop
+        };
+        public Rect[] kelp = { new Rect(-2f, -20f, 4f, 9f), new Rect(14f, -20f, 4f, 7f) };
 
         [Header("Sonar and marks")]
         public float sonarRadius = 12f;
@@ -129,9 +147,45 @@ namespace BaitSwitch
         public int inputHz = 30;
         public int tugHz = 10;
         public float interpDelay = 0.1f;
+        public int snapshotParts = 2;          // fish split across this many unreliable messages per tick
+        public int snapshotBufferLen = 32;     // client snapshot ring (ticks)
+        public int inputBufferLen = 64;        // client input ring for replay, server input ring
+        public int maxInputQueue = 6;          // server drops older inputs if a client gets this far ahead
+        public int maxSimStepsPerFrame = 5;
+        public float correctionHalfLife = 0.1f; // own-fish correction easing (s)
+        public float correctionSnapDist = 4f;   // only snap if the error is larger than this (units)
+        public float clockNudge = 0.05f;        // max render-clock speed change while catching up
+        public float clockResetSeconds = 0.25f; // hard reset of the render clock beyond this error
+
+        [Header("School boids")]
+        public float schoolTurnRate = 180f;     // deg/s
+        public float schoolSpeedJitter = 0.15f; // ± fraction of schoolCruise per fish
+        public float schoolAccel = 5f;
+        public float wAlign = 1f;
+        public float wCohesion = 0.6f;
+        public float wSeparate = 1.5f;
+        public float wWander = 0.4f;
+        public float wanderJitter = 2f;         // rad/s random walk
+        public float wBounds = 3f;
+        public float boundsMargin = 2f;
+        public float wDepth = 0.5f;             // pull toward midwater
+        // Behaviour modes so a player swimming straight or idling still looks like some school fish.
+        public float cruiseShare = 0.3f;        // chance a new mode is "cruise to a point"
+        public float idleShare = 0.15f;         // chance a new mode is "hover"
+        public Vector2 flockTime = new Vector2(4f, 10f);
+        public Vector2 cruiseTime = new Vector2(3f, 7f);
+        public Vector2 idleTime = new Vector2(1.5f, 4f);
+        public float wTarget = 2.5f;
+        public float cruiseSpeedMul = 1.35f;    // cruisers swim a bit faster, closer to player pace
+        public float cruiseFlockScale = 0.25f;  // align/cohesion strength while cruising
+        public float idleSpeedMul = 0.4f;
+        public float wAvoidHook = 4f;
+        public float nibbleApproachTimeout = 4f; // school fish gives up reaching a hook after this
+
+        public int FishCount => schoolCount + seats;
 
         [Header("Server lifecycle")]
-        public float idleStopSeconds = 180f;
+        public float idleStopSeconds = 600f;   // long enough for a browser to download the WebGL page
         public float noNewMatchAfterMinutes = 52f;
 
         [Header("Scoring")]

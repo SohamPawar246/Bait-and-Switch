@@ -38,6 +38,25 @@ namespace BaitSwitch.Net
         public short cursorX; // world units * 256 (angler hook target, or mouse-follow swim target)
         public short cursorY;
         public Buttons buttons;
+        // The two previous inputs (seq-1, seq-2), resent so 2% loss never costs an input.
+        public sbyte prevX1, prevY1, prevX2, prevY2;
+        public Buttons prevB1, prevB2;
+    }
+
+    /// <summary>Server → one client after its JoinMsg, reliable. Private: only you learn your fish index.</summary>
+    public struct WelcomeMsg : NetworkMessage
+    {
+        public ushort ownIndex;   // 0xFFFF = no fish (spectator / angler)
+        public ushort fishCount;  // fish per snapshot, constant for the round
+        public uint tick;
+        public Role role;
+        public byte boatId;       // 0xFF = no boat (fish)
+    }
+
+    /// <summary>Dev only until GameStateManager (step 4): client asks to switch role (F1).</summary>
+    public struct RoleRequestMsg : NetworkMessage
+    {
+        public Role role;
     }
 
     /// <summary>Server → client once per round, reliable. Tells only YOU your role and fish id.</summary>
@@ -54,12 +73,21 @@ namespace BaitSwitch.Net
         public string[] seatNames;     // for the ledger and boats; bots carry their cult titles
     }
 
-    /// <summary>Server → client at 15 Hz, unreliable. Payload packed by SnapshotCodec.</summary>
+    /// <summary>
+    /// Server → client at 15 Hz, unreliable. One tick is split into partCount parts so each fits the
+    /// 1200-byte KCP MTU (docs/BRIEF.md). Fish bytes are identical for everyone; only ackSeq/ownV*
+    /// differ per recipient and describe the recipient's own fish (zero if it has none).
+    /// data = fish [first, first+count) packed by SnapshotCodec; part 0 also carries hooks + boats.
+    /// ArraySegment: valid only inside the handler, decode immediately.
+    /// </summary>
     public struct SnapshotMsg : NetworkMessage
     {
         public uint tick;
-        public float roundTime;
-        public byte[] data;
+        public uint ackSeq;       // last InputMsg.seq the server applied to your fish
+        public short ownVx, ownVy; // your fish velocity (Quant), for replaying inputs
+        public byte part, partCount;
+        public ushort first, count;
+        public ArraySegment<byte> data;
     }
 
     public enum EventKind : byte
@@ -67,6 +95,38 @@ namespace BaitSwitch.Net
         Hooked, Snapped, TornLoose, Landed, Switched, LeviathanRises, BoatDragged,
         SonarPing, Mark, PhaseChanged, RoundEnd, MatchEnd, PlayerJoined, PlayerLeft,
         SomethingNewSwims, Rotation, Nibble, Eaten, InkCloud, MissScatter, Shock,
+        SonarOutline, // private to the pinging Angler: a = fish index outlined
+        Tangled,      // a = hook
+        Escaped,      // private to the fish: you got away (b = points)
+        Points,       // private: a = points gained, b = reason (EventKind of the cause)
+        Reeled,       // public: a = fish seat landed, b = angler seat (0xFF none) — the named catch feed
+    }
+
+    /// <summary>Server → all, reliable, on change and once per second. The match clock and state for the HUD.</summary>
+    public struct MatchStateMsg : NetworkMessage
+    {
+        public byte state;     // MatchState
+        public byte round;     // 1..3
+        public float time;     // seconds into the current state
+        public byte phase;     // Phase
+        public byte fishLeft;  // fish seats still swimming
+    }
+
+    public enum MatchState : byte { Waiting, Intro, Playing, Ledger, Final }
+
+    /// <summary>
+    /// Server → each client, reliable, once a second: who is in the sea. Roles and names are public; a fish body index
+    /// is only filled in for fellow fish (fish see fish nametags), boat indices for anglers (anglers see angler tags).
+    /// </summary>
+    public struct RosterMsg : NetworkMessage
+    {
+        public byte you;          // receiver's seat (255 none)
+        public string[] names;
+        public byte[] roles;      // Role per seat (Spectator mid-round = being robed)
+        public bool[] human;
+        public short[] fish;      // fish index, only for fellow fish, else -1
+        public short[] hook;      // boat/hook index for anglers, else -1
+        public short[] points;
     }
 
     /// <summary>Server → client, reliable. Generic event; meaning of a/b/x/y depends on kind.</summary>

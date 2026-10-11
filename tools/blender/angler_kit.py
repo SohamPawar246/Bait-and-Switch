@@ -12,24 +12,42 @@ from fish_kit import _M, _rx, _ry, _rz
 
 
 def _coat_mats():
-    return [C.fill_material(), C.detail_material(S.PALETTE["ink"], name="Void"), C.detail_material(S.PALETTE["raincoat"], 2.5, name="HoodEyes")]
+    # Fill = raincoat (tinted per Angler in Unity); preview shows the canonical yellow.
+    return [C.toon_material("Fill_Coat", S.PALETTE["raincoat"]), C.detail_material(S.PALETTE["ink"], name="Void"),
+            C.detail_material(S.PALETTE["raincoat"], 4.0, name="HoodEyes")]
 
 
 def raincoat():
-    """Coat shell + hood with a black void and two glowing pupils. Fill is tinted (raincoat colour) in Unity."""
+    """Oversized cult raincoat: bell coat, hem, rope belt, stubby sleeves, big hood with a drooping peak,
+    a black void for a face and two glowing, slightly uneven pupils. Faces +X; Unity turns it toward the camera."""
     coll = C.collection("angler")
-    bm = C.bm_cone(S.COAT_RADIUS_BOTTOM, S.COAT_RADIUS_TOP, S.COAT_HEIGHT, 24, _M((0, 0, S.COAT_HEIGHT * 0.5 - 0.15)))
-    hood = C.bm_uvsphere(S.HOOD_RADIUS, 20, 12, _M((0.02, 0, S.COAT_HEIGHT - 0.05), None, (1.05, 1, 1.2)))
-    C.merge_into(bm, hood, 0)
-    # the void: a dark disc set into the hood's face
-    void = C.bm_uvsphere(S.HOOD_RADIUS * 0.72, 16, 8, _M((S.HOOD_RADIUS * 0.62, 0, S.COAT_HEIGHT - 0.06), None, (0.35, 1, 1.05)))
-    C.merge_into(bm, void, 1)
-    for y in (-0.07, 0.07):
-        C.merge_into(bm, C.bm_uvsphere(0.025, 10, 6, _M((S.HOOD_RADIUS * 0.78, y, S.COAT_HEIGHT - 0.04))), 2)
+    H, R0, R1, HR = S.COAT_HEIGHT, S.COAT_RADIUS_BOTTOM, S.COAT_RADIUS_TOP, S.HOOD_RADIUS
+    bm = C.bm_cone(R0, R1, H, 28, _M((0, 0, H * 0.5 - 0.15)))
+    C.merge_into(bm, C.bm_cone(R0 + S.HEM_THICK, R0 + S.HEM_THICK * 0.6, S.HEM_THICK * 2, 28, _M((0, 0, -0.15 + S.HEM_THICK))), 0)
+    # rope belt (Detail, dark)
+    k = S.BELT_HEIGHT / H
+    rb = R0 + (R1 - R0) * k
+    C.merge_into(bm, C.bm_cone(rb + S.BELT_THICK, rb + S.BELT_THICK, S.BELT_THICK * 1.6, 28, _M((0, 0, -0.15 + S.BELT_HEIGHT))), 1)
+    # stubby sleeves, angled forward-down (the right one holds the rod)
+    for side in (1, -1):
+        C.merge_into(bm, C.bm_cone(S.SLEEVE_RADIUS * 1.3, S.SLEEVE_RADIUS, S.SLEEVE_LEN, 12,
+                                   _M((0.08, side * (R1 + 0.06), H * 0.42), _rx(side * 70) @ _ry(35))), 0)
+    # hood: big rounded shell + drooping peak
+    hz = H - 0.06
+    C.merge_into(bm, C.bm_uvsphere(HR, 22, 12, _M((0.0, 0, hz), None, S.HOOD_STRETCH)), 0)
+    C.merge_into(bm, C.bm_cone(HR * 0.42, 0.0, S.HOOD_PEAK_LEN, 14,
+                               _M((-HR * 0.45, 0, hz + HR * 1.0 + S.HOOD_PEAK_LEN * 0.3), _ry(-S.HOOD_PEAK_DROOP_DEG))), 0)
+    # the void: a deep black ellipsoid filling the hood's opening
+    vs = S.VOID_SCALE
+    C.merge_into(bm, C.bm_uvsphere(HR, 18, 10, _M((HR * 0.62, 0, hz - 0.02), None, vs)), 1)
+    # two glowing pupils, slightly uneven (one higher and bigger): the only "face" an Angler has
+    for y, dz, sc in ((-S.HOOD_PUPIL_SPREAD, 0.012, 1.12), (S.HOOD_PUPIL_SPREAD, -0.006, 0.9)):
+        C.merge_into(bm, C.bm_uvsphere(S.HOOD_PUPIL * sc, 10, 6, _M((HR * 0.62 + HR * vs[0] * 0.92, y, hz + dz))), 2)
     # toggle buttons down the front
     for i in range(3):
-        C.merge_into(bm, C.bm_uvsphere(0.02, 8, 4, _M((S.COAT_RADIUS_BOTTOM * (0.62 + i * 0.1), 0, 0.05 + i * 0.13))), 1)
+        C.merge_into(bm, C.bm_uvsphere(0.022, 8, 4, _M((R0 * (0.66 + i * 0.1), 0, 0.02 + i * 0.12))), 1)
     ob = C.mesh_object("angler_raincoat", bm, coll, _coat_mats())
+    C.add_socket(ob, "rod", Vector((0.16, -(R1 + 0.16), H * 0.32)), (0, 0, 1))
     C.finish(ob)
     return C.tag(ob, "angler", "angler")
 

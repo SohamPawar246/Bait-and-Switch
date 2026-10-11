@@ -33,6 +33,8 @@ interface Lobby {
   requestId: string | null;
   host: string | null;
   port: number | null;
+  webPort?: number | null; // HTTPS port serving the WebGL game (TLS added by Edgegap)
+  wsPort?: number | null;  // WSS port the browser client connects to
   location: string | null;
   since: number; // ms timestamp when the current status began
   lastError: string | null;
@@ -49,15 +51,30 @@ const EMPTY: Lobby = {
 };
 
 const EDGEGAP_API = "https://api.edgegap.com";
+
+// shown while a sea wakes up for a browser player; refreshes itself until /play can redirect
+const wakingPage = (error: string | null, location: string | null) =>
+  new Response(
+    `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bait &amp; Switch</title>${error ? "" : '<meta http-equiv="refresh" content="4">'}
+<style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1620;color:#f4e9d8;
+font-family:Georgia,serif;text-align:center}h1{font-size:3em;margin:0 0 .3em}p{opacity:.8;font-size:1.2em}</style></head>
+<body><div><h1>Bait &amp; Switch</h1><p>${error ? error + " <a style='color:#f2c14e' href='/play'>Try again</a>" :
+      "Calling the Deep" + (location ? " near " + location : "") + "&hellip; the sea opens in a moment."}</p></div></body></html>`,
+    { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } },
+  );
 const POLL_STARTING_MS = 12_000;   // fallback poll while a server is starting or stopping
 const POLL_READY_MS = 60_000;      // slow heartbeat while ready, to notice silent terminations
 const START_TIMEOUT_MS = 5 * 60_000;
 const STOP_TIMEOUT_MS = 3 * 60_000;
 
+// browsers on other origins (the itch.io web build) may call /join and /status
+const CORS = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type" };
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", "cache-control": "no-store", ...CORS },
   });
 
 // ---------------------------------------------------------------- Worker entry
@@ -69,7 +86,8 @@ export default {
     const parts = url.pathname.split("/").filter(Boolean);
 
     try {
-      if (req.method === "GET" && url.pathname === "/health") return new Response("ok");
+      if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+      if (req.method === "GET" && url.pathname === "/health") return new Response("ok", { headers: CORS });
 
       if (req.method === "POST" && url.pathname === "/join") {
         const ip = req.headers.get("CF-Connecting-IP") ?? "";
@@ -78,6 +96,16 @@ export default {
 
       if (req.method === "GET" && url.pathname === "/status") {
         return json(await lobby.view());
+      }
+
+      // the permanent "play in your browser" link: wakes a sea, then sends you to its own https page on Edgegap
+      if (req.method === "GET" && (url.pathname === "/play" || url.pathname === "/")) {
+        const ip = req.headers.get("CF-Connecting-IP") ?? "";
+        const r = (await lobby.join(ip, url.origin)) as { state: string; host?: string; webPort?: number; wsPort?: number; message?: string; location?: string };
+        if (r.state === "ready" && r.host && r.webPort) {
+          return Response.redirect(`https://${r.host}:${r.webPort}/?ws=${r.wsPort ?? ""}`, 302);
+        }
+        return wakingPage(r.state === "error" ? r.message ?? "The Deep did not answer." : null, r.location ?? null);
       }
 
       if (req.method === "POST" && parts[0] === "edgegap" && parts[1] === "webhook") {
@@ -132,7 +160,7 @@ export class SeaLobby extends DurableObject<Env> {
   private reply() {
     const l = this.lobby;
     if (l.status === "ready" && l.host && l.port) {
-      return { state: "ready", host: l.host, port: l.port, location: l.location, requestId: l.requestId };
+      return { state: "ready", host: l.host, port: l.port, webPort: l.webPort ?? null, wsPort: l.wsPort ?? null, location: l.location, requestId: l.requestId };
     }
     if (l.status === "none" && l.lastError) {
       return { state: "error", message: l.lastError };
@@ -150,6 +178,11 @@ export class SeaLobby extends DurableObject<Env> {
   async join(ip: string, origin: string) {
     await this.load();
     if (this.lobby.status === "none") await this.deploy(ip, origin);
+    else if (this.lobby.status === "ready" && this.lobby.requestId && !this.lobby.webPort) {
+      // the ready webhook may not list every port: fetch the browser ports once
+      const st = await this.edgegapStatus(this.lobby.requestId);
+      if (st && st.webPort) await this.save({ webPort: st.webPort, wsPort: st.wsPort });
+    }
     return this.reply();
   }
 
@@ -172,6 +205,8 @@ export class SeaLobby extends DurableObject<Env> {
         status: "ready",
         host: (p.fqdn as string) ?? null,
         port: ports?.gameport?.external ?? null,
+        webPort: ports?.web?.external ?? null,
+        wsPort: ports?.ws?.external ?? null,
         location: loc ? [loc.city, loc.country].filter(Boolean).join(", ") : null,
         lastError: null,
       });
@@ -202,7 +237,7 @@ export class SeaLobby extends DurableObject<Env> {
 
     if (st.running && st.host && st.port) {
       if (l.status === "starting") {
-        await this.save({ status: "ready", host: st.host, port: st.port, location: st.location });
+        await this.save({ status: "ready", host: st.host, port: st.port, webPort: st.webPort, wsPort: st.wsPort, location: st.location });
         return;
       }
     } else if (st.error) {
@@ -226,6 +261,7 @@ export class SeaLobby extends DurableObject<Env> {
   // ---- Edgegap API
 
   private auth() {
+    if (!this.env.EDGEGAP_TOKEN) throw new Error("EDGEGAP_TOKEN is not set (wrangler secret put EDGEGAP_TOKEN)");
     const t = this.env.EDGEGAP_TOKEN.trim();
     return t.toLowerCase().startsWith("token ") ? t : `token ${t}`;
   }
@@ -278,12 +314,13 @@ export class SeaLobby extends DurableObject<Env> {
     });
     if (!res.ok) return false;
     const data = (await res.json()) as {
-      data?: { request_id: string; fqdn: string; ready: boolean; ports?: { gameport?: { external?: number } } }[];
+      data?: { request_id: string; fqdn: string; ready: boolean; ports?: Record<string, { external?: number }> }[];
     };
     const d = data.data?.[0];
     if (!d) return false;
     if (d.ready && d.ports?.gameport?.external) {
-      await this.save({ status: "ready", requestId: d.request_id, host: d.fqdn, port: d.ports.gameport.external, lastError: null });
+      await this.save({ status: "ready", requestId: d.request_id, host: d.fqdn, port: d.ports.gameport.external,
+                        webPort: d.ports.web?.external ?? null, wsPort: d.ports.ws?.external ?? null, lastError: null });
     } else {
       await this.save({ status: "starting", requestId: d.request_id, host: null, port: null, lastError: null });
     }
@@ -291,18 +328,18 @@ export class SeaLobby extends DurableObject<Env> {
   }
 
   private async edgegapStatus(id: string): Promise<
-    { running: boolean; error: boolean; host: string | null; port: number | null; location: string | null } | null
+    { running: boolean; error: boolean; host: string | null; port: number | null; webPort: number | null; wsPort: number | null; location: string | null } | null
   > {
     const res = await fetch(`${EDGEGAP_API}/v1/status/${id}`, { headers: { Authorization: this.auth() } });
     if (res.status === 404 || res.status === 410) return null;
-    if (!res.ok) return { running: false, error: false, host: null, port: null, location: null }; // transient: keep polling
+    if (!res.ok) return { running: false, error: false, host: null, port: null, webPort: null, wsPort: null, location: null }; // transient: keep polling
     const s = (await res.json()) as {
       running?: boolean;
       error?: boolean;
       fqdn?: string;
       removal_time?: string | null;
       current_status?: string;
-      ports?: { gameport?: { external?: number } };
+      ports?: Record<string, { external?: number }>;
       location?: { city?: string; country?: string };
     };
     const status = (s.current_status ?? "").toLowerCase();
@@ -312,6 +349,8 @@ export class SeaLobby extends DurableObject<Env> {
       error: !!s.error,
       host: s.fqdn ?? null,
       port: s.ports?.gameport?.external ?? null,
+      webPort: s.ports?.web?.external ?? null,
+      wsPort: s.ports?.ws?.external ?? null,
       location: s.location ? [s.location.city, s.location.country].filter(Boolean).join(", ") : null,
     };
   }

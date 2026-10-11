@@ -19,6 +19,15 @@ Look at a contact sheet ONLY in build/variants/combo mode, once per iteration.
 2. `build` per family: bodies → eyes → fins → tails → mouths → specials → angler → hooks → env → props.
 3. `combo` once after all fish families. 4. `export` with FAMILY="all".
 
+## Headless (when the MCP isn't connected)
+`"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe" -b --factory-startup --python-expr "exec(open(r'<REPO>/tools/blender/build_all.py').read(), {'__name__': '__main__', 'REPO': r'<REPO>', 'FAMILY': 'eyes', 'MODE': 'check'})"`
+
+## Contracts Unity relies on
+- Bodies carry `socket_eye_L / socket_eye_R / socket_eye_C` (ray-cast on the head) plus front, mouth, fin_L/R, tail, top, belly, coat, hat.
+- An eyes part is an EMPTY root (`eyes_two` …) with mesh children `eye_L / eye_R / eye_C`; each goes to the matching body socket.
+  Each eye has `pupil_<n>` children (Unity turns them toward hooks).
+- Raincoat has `socket_rod`. Camera-facing details on props/env sit on the -Y side.
+
 ## Rules
 - Blender 5.1+ (official Blender Lab MCP). Use bpy + bmesh; prefer bpy.data/bmesh over bpy.ops
   (exceptions already in the code: render and FBX export).

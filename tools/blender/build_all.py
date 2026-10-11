@@ -29,14 +29,15 @@ TOOLS = os.path.join(REPO, "tools", "blender")
 if TOOLS not in sys.path:
     sys.path.insert(0, TOOLS)
 
-import style, common, fish_kit, angler_kit, env_kit, validate, contact_sheet, export  # noqa: E402
-for m in (style, common, fish_kit, angler_kit, env_kit, validate, contact_sheet, export):
+import style, common, fish_kit, angler_kit, env_kit, scene_kit, validate, contact_sheet, export  # noqa: E402
+for m in (style, common, fish_kit, angler_kit, env_kit, scene_kit, validate, contact_sheet, export):
     importlib.reload(m)  # pick up edits without restarting Blender
 
 FAMILIES = {}
 FAMILIES.update(fish_kit.FAMILIES)
 FAMILIES.update(angler_kit.FAMILIES)
 FAMILIES.update(env_kit.FAMILIES)
+FAMILIES.update(scene_kit.FAMILIES)
 
 # Edit these 9 parameter sets for the style-lock grid (MODE="variants"); pick one, copy it into style.py.
 VARIANTS = [
@@ -64,22 +65,45 @@ def summary(report, extra=None):
     return s
 
 
+def _dup_tree(ob, parent):
+    d = ob.copy()
+    if ob.data:
+        d.data = ob.data.copy()
+    bpy.context.scene.collection.objects.link(d)
+    d.parent = parent
+    d.matrix_parent_inverse.identity()
+    for c in ob.children:
+        _dup_tree(c, d)
+    return d
+
+
+def attach_eyes(eyes_root, sockets):
+    """Eyes contract: each eye_X child goes to the body's socket_eye_X (same as Unity's FishAssembler)."""
+    placed = []
+    for child in eyes_root.children:
+        key = child.name.split(".")[0][len("eye_"):]
+        sock = sockets.get("eye_" + key)
+        if sock is None:
+            continue
+        d = _dup_tree(child, sock)
+        d.location = (0, 0, 0)
+        d.rotation_euler = (0, 0, 0)
+        placed.append(d)
+    return placed
+
+
 def assemble(body, parts_by_slot, rng):
     """Attach one random part per slot at the body's sockets (copies), for the combo test."""
     sockets = {c.name.split(".")[0][len("socket_"):]: c for c in body.children if c.name.startswith("socket_")}
-    placed = []
-    plan = [("eyes", "eyes"), ("mouths", "mouth"), ("fins", "fin_L"), ("fins", "fin_R"), ("tails", "tail")]
+    placed = attach_eyes(rng.choice(parts_by_slot["eyes"]), sockets)
+    plan = [("mouths", "mouth"), ("fins", "fin_L"), ("fins", "fin_R"), ("tails", "tail")]
     special = rng.choice(parts_by_slot["specials"] + [None])
     if special is not None:
         where = {"special_hammerhead": "front", "special_tentacles": "mouth", "special_ink_gland": "belly"}.get(special.name, "top")
         plan.append((special, where))
     for src, sock in plan:
         part = src if not isinstance(src, str) else rng.choice(parts_by_slot[src])
-        dup = part.copy()
-        dup.data = part.data.copy()
-        bpy.context.scene.collection.objects.link(dup)
-        dup.parent = sockets[sock]
-        dup.matrix_parent_inverse.identity()
+        dup = _dup_tree(part, sockets[sock])
         dup.location = (0, 0, 0)
         dup.rotation_euler = (0, 0, 0)
         dup["family"] = "combo_part"
@@ -95,10 +119,9 @@ def run():
             for k, val in v.items():
                 setattr(style, k, val)
             body = fish_kit._body(f"variant_{i + 1}", style.BODY_LEN, style.BODY_HEIGHT, style.BODY_WIDTH)
-            eyes = fish_kit._eyes(f"variant_{i + 1}_eyes", [(-style.EYE_SPREAD, 0, 1 + style.EYE_ASYM), (style.EYE_SPREAD, 0, 1 - style.EYE_ASYM)])
-            sock = next(c for c in body.children if c.name.startswith("socket_eyes"))
-            eyes.parent = sock
-            eyes.location = (0, 0, 0)
+            eyes = fish_kit._eyes(f"variant_{i + 1}_eyes", {"L": [(0, 0, 1 + style.EYE_ASYM)], "R": [(0, 0, 1 - style.EYE_ASYM)]})
+            socks = {c.name.split(".")[0][len("socket_"):]: c for c in body.children if c.name.startswith("socket_")}
+            attach_eyes(eyes, socks)
             del eyes["family"]
             body["family"] = "variants"
             heroes.append(body)
@@ -122,7 +145,15 @@ def run():
                 bpy.context.scene.collection.objects.link(sc)
                 sc.parent = b
             b["family"] = "combo"
-            assemble(b, slots, rng)
+            tint = style.PREVIEW_TINTS[i % len(style.PREVIEW_TINTS)]
+            tmat = common.toon_material(f"Tint_{tint.lstrip('#')}", tint)
+            b.data.materials[0] = tmat
+            for part in assemble(b, slots, rng):
+                for o in [part] + list(part.children_recursive):
+                    if o.type == "MESH":
+                        for k, m in enumerate(o.data.materials):
+                            if m and m.name == "Fill":
+                                o.data.materials[k] = tmat
             fish.append(b)
         for coll_name in ("bodies", "eyes", "fins", "tails", "mouths", "specials"):
             c = bpy.data.collections.get(coll_name)
